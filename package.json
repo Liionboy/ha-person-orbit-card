@@ -1,0 +1,13 @@
+{
+  "name": "ha-person-orbit-card",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Private read-only Orbit person dashboard card",
+  "scripts": {
+    "check": "node --check ha-person-orbit-card.js",
+    "test": "node --test test/card.test.mjs",
+    "test:browser": "node test/browser.mjs"
+  },
+  "license": "MIT"
+}
