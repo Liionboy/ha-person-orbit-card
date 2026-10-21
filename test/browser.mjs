@@ -28,7 +28,7 @@ try {
  const measure = async (label, budget = 150) => {
   const result = await card.evaluate((el) => {
    const outer = el.getBoundingClientRect(), nodes = [...el.shadowRoot.querySelectorAll('button,.name,.status,.metric-copy,.label,.value,.hint')];
-   return { width: outer.width, height: outer.height, overflow: nodes.filter((n) => { const r = n.getBoundingClientRect(); return r.right > outer.right + 1 || r.left < outer.left - 1 || n.scrollWidth > n.clientWidth + 1; }).map((n) => n.className), values: [...el.shadowRoot.querySelectorAll('.value')].map((n) => ({ text: n.textContent, height: n.getBoundingClientRect().height, scroll: n.scrollWidth, client: n.clientWidth })) };
+   return { width: outer.width, height: outer.height, overflow: nodes.filter((n) => { if (!n.getClientRects().length) return false; const r = n.getBoundingClientRect(); return r.right > outer.right + 1 || r.left < outer.left - 1 || n.scrollWidth > n.clientWidth + 1; }).map((n) => n.className), values: [...el.shadowRoot.querySelectorAll('.value')].map((n) => ({ text: n.textContent, height: n.getBoundingClientRect().height, scroll: n.scrollWidth, client: n.clientWidth })) };
   });
   assert.deepEqual(result.overflow, [], label); assert.ok(result.height <= budget, label + ': ' + result.height);
   for (const value of result.values) { assert.equal(value.height, 18, label); assert.ok(value.scroll <= value.client); }
@@ -59,6 +59,36 @@ try {
  await card.locator('img').waitFor({ state: 'hidden' }); assert.ok(requests.some((url) => url.includes('/api/image/serve/demo/original')));
  await page.evaluate(() => { const hostile = '"><img src="https://tracker.invalid/x" onerror="window.pwned=true">'; window.card.setConfig({ ...window.config, name: hostile, icon: hostile }); window.card.hass = { ...window.card.hass, states: { ...window.card.hass.states, 'person.example': { state: hostile, attributes: { entity_picture: 'data:image/svg+xml,invalid' } }, 'sensor.travel': { state: '5', attributes: { unit_of_measurement: hostile } } } }; });
  assert.equal(await card.locator('img').count(), 0); assert.equal(await page.evaluate(() => window.pwned), undefined); assert.equal(await card.locator('[onerror],[onload]').count(), 0);
+ // Screenshot-style compact card: only explicitly chosen readings, no physical operations.
+ await page.setViewportSize({width:1000,height:800});
+ await page.evaluate(() => {
+  document.body.classList.remove('dark'); window.card.shadowRoot.activeElement?.blur();
+  window.card.setConfig({...window.config,metrics_layout:'compact',sensor_1_entity:'sensor.distance',sensor_1_name:'Distance',sensor_1_icon:'mdi:map-marker-distance',sensor_2_entity:'sensor.altitude',sensor_2_name:'Altitude',sensor_2_icon:'mdi:elevation-rise',battery_charging_entity:'binary_sensor.charging'});
+  window.card.hass={...window.card.hass,states:{'person.example':{state:'home',attributes:{friendly_name:'Alex'}},'sensor.battery':{state:'97',attributes:{unit_of_measurement:'%'}},'sensor.travel':{state:'0',attributes:{unit_of_measurement:'min'}},'sensor.distance':{state:'8',attributes:{unit_of_measurement:'m'}},'sensor.altitude':{state:'382',attributes:{unit_of_measurement:'m'}},'binary_sensor.charging':{state:'off',attributes:{}}}};
+ });
+ for(const width of [440,320,280,243,200,167]){
+  await page.evaluate(w=>document.querySelector('#host').style.width=w+'px',width);
+  await measure('compact-four-'+width,width>=243?150:175);
+  assert.deepEqual(await card.locator('.value').allTextContents(),['97 %','0 min','8 m','382 m']);
+ }
+ await card.locator('[data-action="sensor_1_entity"]').click();
+ await card.locator('[data-action="sensor_2_entity"]').focus();await page.keyboard.press('Enter');
+ assert.deepEqual(await page.evaluate(()=>window.infos.slice(-2)),[{entityId:'sensor.distance'},{entityId:'sensor.altitude'}]);
+ await page.evaluate(()=>{window.card.hass={...window.card.hass,states:{...window.card.hass.states,'binary_sensor.charging':{state:'on',attributes:{}}}};});
+ assert.equal(await card.locator('.charging ha-icon').getAttribute('icon'),'mdi:battery-charging');
+ await page.evaluate(()=>{window.card.setConfig({...window.card._config,sensor_3_entity:'sensor.steps',sensor_4_entity:'sensor.activity'});window.card.hass={...window.card.hass,states:{...window.card.hass.states,'sensor.steps':{state:'12345',attributes:{unit_of_measurement:'steps'}},'sensor.activity':{state:'Walking',attributes:{icon:'mdi:walk'}}}};});
+ await measure('compact-six-167',225);
+ await page.evaluate(()=>{document.querySelector('#host').style.width='243px';document.body.classList.add('dark');});
+ await measure('compact-six-dark-243',200);
+ await page.evaluate(()=>{window.card.hass={...window.card.hass,states:{...window.card.hass.states,'sensor.altitude':{state:'-382.5',attributes:{unit_of_measurement:'m'}}}};});
+ assert.equal(await card.locator('[data-action="sensor_2_entity"] .value').textContent(),'-382.5 m');
+ assert.equal(await card.evaluate(el=>el.shadowRoot.activeElement?.dataset.action),'sensor_2_entity');
+ await page.evaluate(()=>{delete window.card.hass.states['sensor.distance'];window.card.hass={...window.card.hass};});
+ assert.ok(await card.locator('[data-action="sensor_1_entity"]').isDisabled());
+ await page.evaluate(()=>{const hostile='"><img src=https://tracker.invalid onerror="window.pwned=1">';window.card.setConfig({...window.card._config,sensor_3_name:hostile,sensor_3_icon:hostile});window.card.hass={...window.card.hass,states:{...window.card.hass.states,'sensor.steps':{state:hostile,attributes:{unit_of_measurement:hostile}}}};});
+ assert.equal(await card.locator('img,[onerror]').count(),0);assert.equal(await page.evaluate(()=>window.pwned),undefined);
+ await page.evaluate(()=>{document.querySelector('#host').style.width='320px';window.card.setConfig({...window.config,metrics_layout:'compact'});});
+ assert.equal(await card.locator('.extra').count(),0);
  await page.evaluate(() => window.card.setConfig({})); await measure('empty-320', 150); assert.equal(await card.locator('button').count(), 0);
  assert.deepEqual(await page.evaluate(() => [window.calls, window.queries]), [[], []]); assert.deepEqual(errors, []); assert.equal(requests.some((url) => !url.startsWith('http://person.test/')), false);
  console.log('Browser assertions passed; synthetic hass and HA icon/component stubs. Services=0; queries=0.');

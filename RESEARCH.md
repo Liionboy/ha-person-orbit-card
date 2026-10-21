@@ -11,3 +11,10 @@ Inspected official documentation and source on 2026-10-21 before implementation.
 - [HACS plugin publishing](https://www.hacs.xyz/docs/publish/plugin/): root/dist JavaScript matching repository name. Root manifest and asset follow this contract; no automated publication/release workflow.
 
 Security choice rather than HA guarantee: avatar paths are deliberately narrower than all HA-supported entity_picture values. Only local HA image endpoints are accepted; arbitrary external/relative paths are rejected. Native components are not stable public APIs; synthetic tests clearly stub them.
+
+## v1.1.0 optional readings (2026-10-22)
+
+- Re-inspected [released selector types](https://github.com/home-assistant/frontend/blob/20260527.4/src/data/selector.ts): entity selectors support `filter.domain` as a string or array; new fields use sensor filters and sensor/binary_sensor for charging. Native text/icon/select selectors reuse the existing verified form contract.
+- Additional readings consume only the explicitly selected sensor state, friendly_name, icon and unit_of_measurement. Numeric values preserve sign/decimals/units; nonnumeric sensor states use the existing HA formatter/fallback. No device-tracker coordinate attributes are read.
+- Charging is an explicit display mapping, not a query or service: binary sensor `on`, or sensor state `charging` (case-insensitive). Unknown/unavailable/unrecognized values never infer charging.
+- Compact layout is opt-in to preserve the existing appearance. Synthetic Chromium reproduces 243px screenshot-like and 167px narrow tiles, with complete readings/height assertions. Hidden labels are intentionally excluded from geometry checks; visible values are not. Native editor, actual HA icon glyphs, live sensors and Companion apps remain unverified.
