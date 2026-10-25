@@ -41,7 +41,7 @@ Pictures are limited to root-relative `/api/image/serve/<id>/<file>` and `/api/i
 
 ## Small person tile with additional readings
 
-For a layout with battery/travel time on the first line and distance/altitude below, choose **Readings layout → compact** in the visual editor. Every entity is optional. Existing configurations keep their original `tiles` appearance.
+Choose **Readings layout → compact** in the visual editor for a consistent two-column icon/value grid. Battery, travel time and all additional sensors flow in configured order, two per row; empty slots do not reserve space. At very narrow card widths (container ≤200px), readings stack for legibility. Every entity is optional. Existing configurations keep their original `tiles` appearance.
 
 ```yaml
 type: custom:ha-person-orbit-card
@@ -70,4 +70,4 @@ npm test
 PLAYWRIGHT_MODULE=/path/to/playwright-core/index.mjs CHROMIUM_EXECUTABLE=/path/to/chromium SCREENSHOT_DIR=/path/to/screenshots npm run test:browser
 ```
 
-Node tests use VM mocks. Browser tests use synthetic `hass`, a stub icon and a plain `ha-card` element—not actual HA components. 73 Node regression tests and browser checks cover original and compact layouts, including screenshot-sized 243px and two-column-phone 167px tiles. Four readings measure 148px tall at 243px wide and 157px tall at 167px wide; six readings grow to 201px at 167px. Browser tests also check interactions after unrelated updates, keyboard, light/dark, reduced motion and privacy/security behavior. No live HA or native-editor validation is claimed. See [TODO.md](TODO.md) and [RESEARCH.md](RESEARCH.md).
+Node tests use VM mocks. Browser tests use synthetic `hass`, a stub icon and a plain `ha-card` element—not actual HA components. 74 Node regression tests and browser checks cover original and compact layouts, including screenshot-sized 243px and two-column-phone 167px tiles. Four readings measure 126px tall at 243px wide and 157px tall at 167px wide; six readings measure 148px at 243px and 201px at 167px. Geometric checks cover one to six readings, missing primary fields, odd counts, equal-width paired columns, narrow single-column fallback, complete decimal/unit values and long wrapping text. Browser tests also check exact More Info, interactions after unrelated updates, keyboard, light/dark, reduced motion and privacy/security behavior. `CARD_RESOURCE` can target the final suite bundle. No live HA or native-editor validation is claimed. See [TODO.md](TODO.md) and [RESEARCH.md](RESEARCH.md).

@@ -1,4 +1,4 @@
-/* Person Orbit Card v1.1.0 — MIT */
+/* Person Orbit Card v1.1.1 — MIT */
 const TYPE = 'ha-person-orbit-card';
 const PALETTES = ['aurora', 'ocean', 'sunset', 'lavender'];
 const EXTRA_SLOTS = [1, 2, 3, 4];
@@ -18,8 +18,8 @@ ha-card[data-palette=ocean]{--accent:#1477c9;--accent2:#22a7c7}ha-card[data-pale
 .copy{min-width:0;flex:1}.name{display:block;font-size:15px;font-weight:700;line-height:21px;overflow-wrap:anywhere}.status{display:block;font-size:12px;line-height:18px;color:var(--secondary-text-color,#637080);overflow-wrap:anywhere}.metrics{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.metric{display:flex;align-items:center;gap:6px;min-width:0;max-width:100%;flex:1 1 95px;border:0;border-radius:10px;padding:7px 9px;text-align:left;background:color-mix(in srgb,var(--accent) 6%,transparent)}.metric ha-icon{flex:none;--mdc-icon-size:17px;color:var(--accent)}.metric.low ha-icon{color:var(--error-color,#c74343)}.metric-copy{min-width:0}.label{display:block;font-size:10px;line-height:14px;color:var(--secondary-text-color,#637080)}.value{display:block;font-size:12px;line-height:18px;font-weight:650;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}.hint{font-size:12px;line-height:18px;color:var(--secondary-text-color,#637080);overflow-wrap:anywhere}.hint strong{display:block;color:var(--primary-text-color,#202b3c);margin-bottom:4px}
 @container person (max-width:240px){.shell{padding:12px}.person{gap:9px}.avatar{width:40px;height:40px}.avatar ha-icon{--mdc-icon-size:23px}.name{font-size:14px}.metric{flex-basis:100%;padding:6px 8px}.metric-copy{display:flex;align-items:center;justify-content:space-between;gap:8px;flex:1}.value{font-size:12px}}
 @container person (max-width:180px){.person{gap:8px}.avatar{width:36px;height:36px}.name{font-size:13px}.metric{gap:4px}.metric ha-icon{--mdc-icon-size:15px}.metric-copy{gap:4px}.label{font-size:9px}.value{font-size:11px}}
-/* Compact readings match small person tiles: battery/travel first, extra sensors below. */
-.metrics.compact{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 8px;margin-top:6px}.compact .metric{padding:1px 0;gap:4px;background:transparent;border-radius:5px}.compact .metric-copy{display:block;min-width:0;flex:1}.compact .label{display:none}.compact .value{font-size:12px;line-height:18px;font-weight:400;overflow-wrap:anywhere}.compact .extra{grid-column:1/-1}.compact .metric ha-icon{--mdc-icon-size:15px}.metric.charging:not(.low) ha-icon{color:var(--warning-color,#d59a38)}
+/* Every compact reading shares the same two-column grid; narrow tiles stack safely. */
+.metrics.compact{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 8px;margin-top:6px}.compact .metric{padding:1px 0;gap:4px;background:transparent;border-radius:5px}.compact .metric-copy{display:block;min-width:0;flex:1}.compact .label{display:none}.compact .value{font-size:12px;line-height:18px;font-weight:400;overflow-wrap:anywhere}.compact .metric ha-icon{--mdc-icon-size:15px}.metric.charging:not(.low) ha-icon{color:var(--warning-color,#d59a38)}
 @container person (max-width:200px){.metrics.compact{grid-template-columns:minmax(0,1fr)}.compact .metric{grid-column:1/-1}}
 `;
 class PersonOrbitCard extends HTMLElement {

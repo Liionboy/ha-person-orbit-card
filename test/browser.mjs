@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
-const source = await readFile(new URL('../ha-person-orbit-card.js', import.meta.url), 'utf8');
+const source = await readFile(process.env.CARD_RESOURCE || new URL('../ha-person-orbit-card.js', import.meta.url), 'utf8');
 const out = process.env.SCREENSHOT_DIR;
 if (out) await mkdir(out, { recursive: true });
 const browser = await chromium.launch({ headless: true, ...(process.env.CHROMIUM_EXECUTABLE ? { executablePath: process.env.CHROMIUM_EXECUTABLE } : {}) });
@@ -89,6 +89,39 @@ try {
  assert.equal(await card.locator('img,[onerror]').count(),0);assert.equal(await page.evaluate(()=>window.pwned),undefined);
  await page.evaluate(()=>{document.querySelector('#host').style.width='320px';window.card.setConfig({...window.config,metrics_layout:'compact'});});
  assert.equal(await card.locator('.extra').count(),0);
+ // All selected compact readings flow in pairs, including absent primary fields/odd counts.
+ await page.evaluate(() => {
+  window.pairedConfig={entity:'person.example',metrics_layout:'compact',battery_entity:'sensor.battery',eta_entity:'sensor.travel',sensor_1_entity:'sensor.distance',sensor_2_entity:'sensor.altitude',sensor_3_entity:'sensor.steps',sensor_4_entity:'sensor.activity'};
+  window.pairedKeys=['battery_entity','eta_entity','sensor_1_entity','sensor_2_entity','sensor_3_entity','sensor_4_entity'];
+  window.card.hass={...window.card.hass,states:{'person.example':{state:'home',attributes:{friendly_name:'Alex'}},'sensor.battery':{state:'70',attributes:{unit_of_measurement:'%'}},'sensor.travel':{state:'0',attributes:{unit_of_measurement:'min'}},'sensor.distance':{state:'0.0055',attributes:{unit_of_measurement:'km',icon:'mdi:map-marker-distance'}},'sensor.altitude':{state:'376.0',attributes:{unit_of_measurement:'m',icon:'mdi:elevation-rise'}},'sensor.steps':{state:'12345',attributes:{unit_of_measurement:'steps'}},'sensor.activity':{state:'Stopped',attributes:{icon:'mdi:car'}}}};
+ });
+ const assertGrid=async(columns,count)=>{
+  const boxes=await card.locator('.metric').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height};}));
+  assert.equal(boxes.length,count);
+  for(let i=1;i<count;i++){
+   assert.ok(Math.abs(boxes[i].width-boxes[0].width)<1,'equal column widths');
+   if(i%columns){assert.equal(boxes[i].y,boxes[i-1].y,'paired readings must share a row');assert.ok(boxes[i].x>=boxes[i-1].x+boxes[i-1].width,'separate columns');}
+   else{assert.equal(boxes[i].x,boxes[0].x);assert.ok(boxes[i].y>=boxes[i-1].y+boxes[i-1].height,'next reading row');}
+  }
+ };
+ for(const count of [1,2,3,4,5,6]){
+  await page.evaluate(count=>{window.card.setConfig(Object.fromEntries(Object.entries(window.pairedConfig).filter(([key])=>!window.pairedKeys.includes(key)||window.pairedKeys.indexOf(key)<count)));},count);
+  for(const width of [440,280,243,220,200,167]){
+   await page.evaluate(w=>document.querySelector('#host').style.width=w+'px',width);
+   await assertGrid(width>200?2:1,count);
+   await measure('paired-'+count+'-'+width,width>200?150:225);
+  }
+ }
+ await page.evaluate(()=>{const c={...window.pairedConfig};delete c.eta_entity;delete c.sensor_3_entity;window.card.setConfig(c);document.querySelector('#host').style.width='243px';});
+ await assertGrid(2,4);await measure('screenshot-readings-dark-243',130);
+ assert.deepEqual(await card.locator('.value').allTextContents(),['70 %','0.0055 km','376.0 m','Stopped']);
+ for(const action of ['battery_entity','sensor_1_entity','sensor_2_entity','sensor_4_entity']){await card.locator('[data-action="'+action+'"]').click();}
+ assert.deepEqual(await page.evaluate(()=>window.infos.slice(-4)),['battery','distance','altitude','activity'].map(x=>({entityId:'sensor.'+x})));
+ await page.evaluate(()=>document.body.classList.remove('dark'));await measure('screenshot-readings-light-243',130);
+ // Long values may wrap; never clip, ellipsize or hide them to force a compact row.
+ await page.evaluate(()=>{window.card.hass={...window.card.hass,states:{...window.card.hass.states,'sensor.activity':{state:'A deliberately long activity state for visibility',attributes:{}}}};});
+ assert.equal(await card.locator('[data-action="sensor_4_entity"] .value').textContent(),'A deliberately long activity state for visibility');
+ assert.deepEqual(await card.locator('.value').evaluateAll(ns=>ns.filter(n=>n.scrollWidth>n.clientWidth+1||n.scrollHeight>n.clientHeight+1).map(n=>n.textContent)),[]);
  await page.evaluate(() => window.card.setConfig({})); await measure('empty-320', 150); assert.equal(await card.locator('button').count(), 0);
  assert.deepEqual(await page.evaluate(() => [window.calls, window.queries]), [[], []]); assert.deepEqual(errors, []); assert.equal(requests.some((url) => !url.startsWith('http://person.test/')), false);
  console.log('Browser assertions passed; synthetic hass and HA icon/component stubs. Services=0; queries=0.');
