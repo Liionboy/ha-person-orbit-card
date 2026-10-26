@@ -25,13 +25,13 @@ try {
   window.card.hass = { states: { 'person.example': { state: 'home', attributes: { friendly_name: 'Alex Morgan', entity_picture: 'https://tracker.invalid/avatar.png', latitude: 45.123, longitude: 25.321 } }, 'sensor.battery': { state: '52.5', attributes: { unit_of_measurement: '%' } }, 'sensor.travel': { state: '14.7', attributes: { unit_of_measurement: 'min' } } }, callService: (...args) => window.calls.push(args), callWS: (...args) => window.queries.push(args) };
  });
  const card = page.locator('ha-person-orbit-card');
- const measure = async (label, budget = 150) => {
+ const measure = async (label, budget = 150, allowWrap = false) => {
   const result = await card.evaluate((el) => {
    const outer = el.getBoundingClientRect(), nodes = [...el.shadowRoot.querySelectorAll('button,.name,.status,.metric-copy,.label,.value,.hint')];
    return { width: outer.width, height: outer.height, overflow: nodes.filter((n) => { if (!n.getClientRects().length) return false; const r = n.getBoundingClientRect(); return r.right > outer.right + 1 || r.left < outer.left - 1 || n.scrollWidth > n.clientWidth + 1; }).map((n) => n.className), values: [...el.shadowRoot.querySelectorAll('.value')].map((n) => ({ text: n.textContent, height: n.getBoundingClientRect().height, scroll: n.scrollWidth, client: n.clientWidth })) };
   });
   assert.deepEqual(result.overflow, [], label); assert.ok(result.height <= budget, label + ': ' + result.height);
-  for (const value of result.values) { assert.equal(value.height, 18, label); assert.ok(value.scroll <= value.client); }
+  for (const value of result.values) { if(allowWrap)assert.ok(value.height>=18&&value.height%18===0,label);else assert.equal(value.height,18,label);assert.ok(value.scroll<=value.client); }
   metrics.push({ label, ...result }); console.log(label, JSON.stringify(result));
   if (out) await card.screenshot({ path: out + '/' + label + '.png' });
  };
@@ -77,7 +77,7 @@ try {
  await page.evaluate(()=>{window.card.hass={...window.card.hass,states:{...window.card.hass.states,'binary_sensor.charging':{state:'on',attributes:{}}}};});
  assert.equal(await card.locator('.charging ha-icon').getAttribute('icon'),'mdi:battery-charging');
  await page.evaluate(()=>{window.card.setConfig({...window.card._config,sensor_3_entity:'sensor.steps',sensor_4_entity:'sensor.activity'});window.card.hass={...window.card.hass,states:{...window.card.hass.states,'sensor.steps':{state:'12345',attributes:{unit_of_measurement:'steps'}},'sensor.activity':{state:'Walking',attributes:{icon:'mdi:walk'}}}};});
- await measure('compact-six-167',225);
+ await measure('compact-six-167',150,true);
  await page.evaluate(()=>{document.querySelector('#host').style.width='243px';document.body.classList.add('dark');});
  await measure('compact-six-dark-243',200);
  await page.evaluate(()=>{window.card.hass={...window.card.hass,states:{...window.card.hass.states,'sensor.altitude':{state:'-382.5',attributes:{unit_of_measurement:'m'}}}};});
@@ -106,10 +106,10 @@ try {
  };
  for(const count of [1,2,3,4,5,6]){
   await page.evaluate(count=>{window.card.setConfig(Object.fromEntries(Object.entries(window.pairedConfig).filter(([key])=>!window.pairedKeys.includes(key)||window.pairedKeys.indexOf(key)<count)));},count);
-  for(const width of [440,280,243,220,200,167]){
+  for(const width of [440,280,243,220,200,180,167]){
    await page.evaluate(w=>document.querySelector('#host').style.width=w+'px',width);
-   await assertGrid(width>200?2:1,count);
-   await measure('paired-'+count+'-'+width,width>200?150:225);
+   await assertGrid(2,count);
+   await measure('paired-'+count+'-'+width,150,count>=5&&width<=180);
   }
  }
  await page.evaluate(()=>{const c={...window.pairedConfig};delete c.eta_entity;delete c.sensor_3_entity;window.card.setConfig(c);document.querySelector('#host').style.width='243px';});
@@ -122,7 +122,30 @@ try {
  await page.evaluate(()=>{window.card.hass={...window.card.hass,states:{...window.card.hass.states,'sensor.activity':{state:'A deliberately long activity state for visibility',attributes:{}}}};});
  assert.equal(await card.locator('[data-action="sensor_4_entity"] .value').textContent(),'A deliberately long activity state for visibility');
  assert.deepEqual(await card.locator('.value').evaluateAll(ns=>ns.filter(n=>n.scrollWidth>n.clientWidth+1||n.scrollHeight>n.clientHeight+1).map(n=>n.textContent)),[]);
- await page.evaluate(() => window.card.setConfig({})); await measure('empty-320', 150); assert.equal(await card.locator('button').count(), 0);
+ // Reproduce two people SIDE BY SIDE on a phone, not just a full-width phone card.
+ await page.evaluate(()=>{
+  document.body.style.padding='12px';document.body.style.fontFamily='system-ui,sans-serif';
+  document.querySelector('#host').style.cssText='display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;width:100%;align-items:start';
+  const c={...window.pairedConfig};delete c.eta_entity;delete c.sensor_3_entity;window.card.setConfig(c);
+  window.card.hass={...window.card.hass,states:{...window.card.hass.states,'sensor.battery':{state:'100',attributes:{unit_of_measurement:'%'}},'sensor.distance':{state:'0.0052',attributes:{unit_of_measurement:'km'}},'sensor.altitude':{state:'378.0',attributes:{unit_of_measurement:'m'}},'sensor.activity':{state:'Stopped',attributes:{}}}};
+  window.other=document.createElement('ha-person-orbit-card');const c2={...c,name:'Sam',sensor_4_entity:'',palette:'sunset'};other.setConfig(c2);other.hass={...card.hass,states:{...card.hass.states,'sensor.battery':{state:'70',attributes:{unit_of_measurement:'%'}},'sensor.distance':{state:'0.0068',attributes:{unit_of_measurement:'km'}},'sensor.altitude':{state:'372.0',attributes:{unit_of_measurement:'m'}}}};document.querySelector('#host').append(other);
+ });
+ const two=page.locator('ha-person-orbit-card');
+ for(const dark of [false,true])for(const width of [360,390,430]){
+  await page.setViewportSize({width,height:844});await page.evaluate(dark=>document.body.classList.toggle('dark',dark),dark);
+  for(const person of await two.all()){
+   const r=await person.evaluate(el=>{const outer=el.getBoundingClientRect(),ns=[...el.shadowRoot.querySelectorAll('.metric')];return{width:outer.width,height:outer.height,boxes:ns.map(n=>{const r=n.getBoundingClientRect(),v=n.querySelector('.value');return{x:r.x,y:r.y,w:r.width,text:v.textContent,h:v.getBoundingClientRect().height,overflow:v.scrollWidth>v.clientWidth||v.scrollHeight>v.clientHeight};})};});
+   assert.ok(r.width<210&&r.width>150);assert.ok(r.height<=130);
+   for(let i=0;i<r.boxes.length;i++){assert.equal(r.boxes[i].h,18);assert.equal(r.boxes[i].overflow,false);if(i%2)assert.equal(r.boxes[i].y,r.boxes[i-1].y);else if(i)assert.ok(r.boxes[i].y>r.boxes[i-1].y);}
+  }
+  assert.deepEqual(await two.nth(0).locator('.value').allTextContents(),['100 %','0.0052 km','378.0 m','Stopped']);
+  assert.deepEqual(await two.nth(1).locator('.value').allTextContents(),['70 %','0.0068 km','372.0 m']);
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  if(out)await page.locator('#host').screenshot({path:out+'/two-people-'+(dark?'dark':'light')+'-'+width+'.png'});
+ }
+ await two.nth(0).locator('[data-action="sensor_4_entity"]').focus();await page.keyboard.press('Enter');assert.equal(await page.evaluate(()=>infos.at(-1).entityId),'sensor.activity');
+ await page.evaluate(()=>{other.remove();document.querySelector('#host').style.cssText='width:140px';});await assertGrid(1,4);
+ await page.setViewportSize({width:1000,height:800});await page.evaluate(() => {document.querySelector('#host').style.width='320px';window.card.setConfig({});}); await measure('empty-320', 150); assert.equal(await card.locator('button').count(), 0);
  assert.deepEqual(await page.evaluate(() => [window.calls, window.queries]), [[], []]); assert.deepEqual(errors, []); assert.equal(requests.some((url) => !url.startsWith('http://person.test/')), false);
  console.log('Browser assertions passed; synthetic hass and HA icon/component stubs. Services=0; queries=0.');
  if (out) await writeFile(out + '/metrics.json', JSON.stringify({ metrics, paletteColors: colors, services: 0, queries: 0, errors, requests }, null, 2) + '\n');
